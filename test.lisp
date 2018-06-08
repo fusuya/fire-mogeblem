@@ -1,4 +1,5 @@
-;;TODO ステージ終了ごとにセーブしたい ロードするときの文字列入力を作る
+;;TODO セーブデータをsaveフォルダにつくる　ロードはセーブフォルダのファイルを表示
+;;持ち物に武器を複数もてるようにする　装備武器を選ぶ
 ;;bordeaux-threads
 
 
@@ -157,56 +158,6 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 	#'< :key #'(lambda (u) (unit-job u))))
   
 
-;;色変更できるかチェック
-(defun start-color ()
-  (when (eql (charms/ll:has-colors) charms/ll:false)
-    (error "Your terminal does not support color."))
-  (when (eql (charms/ll:can-change-color) charms/ll:false)
-    (error "Your terminal does not support color."))
-  (let ((ret-code (charms/ll:start-color)))
-    (if (= ret-code 0)
-     t
-     (error "start-color error ~s." ret-code))))
-
-;;カラーペアを作る
-(defmacro define-color-pair ((name pair) foreground background)
-  `(progn
-     (start-color)
-     (setf ,name (progn (charms/ll:init-pair ,pair ,foreground ,background)
-                  (charms/ll:color-pair ,pair)))))
-
-
-;;windowの背景色設定
-(defun draw-window-background (window color-pair)
-  (charms/ll:wbkgd (charms::window-pointer window) color-pair))
-
-(defmacro with-colors ((window color-pair) &body body)
-  (let ((winptr (gensym)))
-    (alexandria:once-only (color-pair)
-      `(let ((,winptr (charms::window-pointer ,window)))
-        (charms/ll:wattron ,winptr ,color-pair)
-        ,@body
-        (charms/ll:wattroff ,winptr ,color-pair)))))
-
-;;色作成
-(defun init-color ()
-  (define-color-pair (+white/blue+ 1) +white+ +blue+)
-  (define-color-pair (+black/red+ 2) +black+ +red+)
-  (define-color-pair (+black/white+ 3) +black+ +white+)
-  (define-color-pair (+green/black+ 4) +green+ +black+)
-  (define-color-pair (+dark_green/green+ 5) +dark_green+ +green+)
-  (define-color-pair (+low-yama-f/low-yama-b+ 6) +low-yama-f+ +low-yama-b+)
-  (define-color-pair (+high-yama-f/high-yama-b+ 7) +high-yama-f+ +high-yama-b+)
-  (define-color-pair (+black/town-b+ 8) +black+ +town-b+)
-  (define-color-pair (+black/fort-b+ 9) +black+ +fort-b+)
-  (define-color-pair (+black/castle-b+ 10) +black+ +castle-b+)
-  (define-color-pair (+black/green+ 11) +black+ +green+)
-  (define-color-pair (+black/player-b+ 12) +black+ +player-b+)
-  (define-color-pair (+black/p-move-b+ 13) +black+ +p-move-b+)
-  (define-color-pair (+black/e-move-b+ 14) +black+ +e-move-b+)
-  (define-color-pair (+black/atk-b+    15) +black+ +atk-b+)
-  (define-color-pair (+black/yellow+   16) +black+ +yellow+)
-  (define-color-pair (+white/black+    17) +white+ +black+))
 
 ;;疑似カーソル移動
 (defun cursor-move (game x y map-win)
@@ -352,7 +303,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
     1 1)
    (charms:write-string-at-point
     unit-win
-    (format nil "  Lv  : ~2d" (unit-lv unit))
+    (format nil "  Lv  : ~2d    exp:~2d" (unit-lv unit) (unit-exp unit))
     1 2)
    (charms:write-string-at-point
     unit-win
@@ -513,10 +464,10 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 	      
 
 ;;ユニットの移動可能範囲取得
-(defun can-move-area (x y move movecost team game)
+(defun can-move-area (x y move movecost team game i)
   (when (and (>= (1- *map-w*) x 0) (>= (1- *map-h*) y 0))
     (let* ((cell (aref (game-cells game) y x))
-           (cost (aref movecost cell))
+           (cost (if (= i 0) 0 (aref movecost cell)))
            (unit? (get-unit x y (game-units game))))
       (when (and (>= move cost) (>= cost 0)
                  (or (null unit?)
@@ -525,14 +476,14 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
         (loop for v in '((0 1) (0 -1) (1 0) (-1 0))
               do
               (can-move-area (+ x (car v)) (+ y (cadr v))
-                             (- move cost) movecost team game))))))
+                             (- move cost) movecost team game (1+ i)))))))
 
 ;;ユニットの移動可能範囲取得
 (defun get-move-area (unit game)
   (let ((move (unit-move unit)) (x (game-cursor_x game))
         (team (unit-team unit)) (y (game-cursor_y game))
         (movecost (jobdesc-movecost (unit-jobdesc unit))))
-    (can-move-area x y move movecost team game)))
+    (can-move-area x y move movecost team game 0)))
 
 ;;移動可能範囲の初期化
 (defun init-move-area (move-area)
@@ -623,10 +574,10 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
      "再攻撃")))
 
 ;;攻撃が命中してダメージを与える
-(defun give-damage (atk-unit def-unit a-w-dmg a-w-cri atk-win)
+(defun give-damage (atk-unit def-unit a-w-dmg a-w-cri atk-win tokkou)
   (let* ((a-str (unit-str atk-unit)) (a-luck (unit-luck atk-unit))
          (d-def (unit-def def-unit)) (a-skill (unit-skill atk-unit))
-         (a-atk (+ a-str a-w-dmg))
+         (a-atk (+ a-str (if tokkou (* a-w-dmg 3) a-w-dmg))) ;;特攻なら武器威力の３倍
          (hissatsu? (+ a-w-cri (floor (+ a-skill a-luck) 2)))
          (dmg (max 0 (- a-atk d-def))) (msg-y 2))
     (when (> hissatsu? (random 100))
@@ -662,10 +613,11 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 (defun attack! (atk-unit def-unit cells atk-type atk-win)
   (let* ((a-skill (unit-skill atk-unit)) (kari-exp 0)
          (a-agi (unit-agi atk-unit)) (d-agi (unit-agi def-unit))
-         (a-weapon (unit-weapondesc atk-unit))
+         (a-weapon (unit-weapondesc atk-unit)) (a-w-tokkou (weapondesc-tokkou a-weapon))
          (a-w-dmg (weapondesc-damage a-weapon)) (a-w-hit (weapondesc-hit a-weapon))
          (a-w-wei (weapondesc-weight a-weapon)) (a-w-cri (weapondesc-critical a-weapon))
-         (d-weapon (unit-weapondesc def-unit))
+         (d-weapon (unit-weapondesc def-unit)) (d-job (unit-job def-unit))
+	 (tokkou (find d-job a-w-tokkou)) ;;攻撃側武器の特攻に守備側ユニットジョブが含まれるか
          (d-w-wei (weapondesc-weight d-weapon))
          (d-r-min (weapondesc-rangemin d-weapon))
          (d-r-max (weapondesc-rangemax d-weapon))
@@ -682,7 +634,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
     (charms:get-char atk-win)
     ;;命中したらダメージ
    (if (> hit? (random 100))
-       (setf kari-exp (give-damage atk-unit def-unit a-w-dmg a-w-cri atk-win))
+       (setf kari-exp (give-damage atk-unit def-unit a-w-dmg a-w-cri atk-win tokkou))
        (miss-msg atk-win))
    ;;反撃
    (when (and (> (unit-hp def-unit) 0) (= atk-type +atk_normal+)
@@ -1089,6 +1041,18 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 	     (setf *game-play* nil)))
     (setf *set-init-pos* nil)))
 
+;;装備選択 TODO
+(defun equip-mode (unit cursor)
+  (let* ((window (charms:make-window 18 6 16 (+ *map-h* 2)))
+	 (item-l (unit-item unit)) (len (length item)))
+    (loop for i from 1
+       for item in item-l
+       do (let ((buki (aref *weapondescs* item)))
+	    (charms:write-string-at-point
+	     window
+	     (format nil "~a" (weapondesc-name buki)) 1 i)))
+    (refresh-windows window)))
+
 ;;キー入力
 (defun key-down-event (game map-win unit-win atk-win)
   (let ((c (charms:get-char map-win)))
@@ -1098,6 +1062,10 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
        (setf (game-turn game) +e_turn+))
       ((eql c #\q)
        (setf *game-play* nil))
+      ((eql c #\e)
+       (let ((unit (get-unit (game-cursor_x game) (game-cursor_y game) (game-units game))))
+	 (when (and unit (= (unit-team unit) +ally+))
+	   (equip-mode unit))))
       ((eql c #\x)
        (cond
 	 ;;移動したいユニットを選ぶフェイズ

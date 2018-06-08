@@ -75,6 +75,58 @@
 (defparameter +black/yellow+   nil)
 (defparameter +white/black+    nil)
 
+
+;;色変更できるかチェック
+(defun start-color ()
+  (when (eql (charms/ll:has-colors) charms/ll:false)
+    (error "Your terminal does not support color."))
+  (when (eql (charms/ll:can-change-color) charms/ll:false)
+    (error "Your terminal does not support color."))
+  (let ((ret-code (charms/ll:start-color)))
+    (if (= ret-code 0)
+     t
+     (error "start-color error ~s." ret-code))))
+
+;;カラーペアを作る
+(defmacro define-color-pair ((name pair) foreground background)
+  `(progn
+     (start-color)
+     (setf ,name (progn (charms/ll:init-pair ,pair ,foreground ,background)
+                  (charms/ll:color-pair ,pair)))))
+
+
+;;windowの背景色設定
+(defun draw-window-background (window color-pair)
+  (charms/ll:wbkgd (charms::window-pointer window) color-pair))
+
+(defmacro with-colors ((window color-pair) &body body)
+  (let ((winptr (gensym)))
+    (alexandria:once-only (color-pair)
+      `(let ((,winptr (charms::window-pointer ,window)))
+        (charms/ll:wattron ,winptr ,color-pair)
+        ,@body
+        (charms/ll:wattroff ,winptr ,color-pair)))))
+
+;;色作成
+(defun init-color ()
+  (define-color-pair (+white/blue+ 1) +white+ +blue+)
+  (define-color-pair (+black/red+ 2) +black+ +red+)
+  (define-color-pair (+black/white+ 3) +black+ +white+)
+  (define-color-pair (+green/black+ 4) +green+ +black+)
+  (define-color-pair (+dark_green/green+ 5) +dark_green+ +green+)
+  (define-color-pair (+low-yama-f/low-yama-b+ 6) +low-yama-f+ +low-yama-b+)
+  (define-color-pair (+high-yama-f/high-yama-b+ 7) +high-yama-f+ +high-yama-b+)
+  (define-color-pair (+black/town-b+ 8) +black+ +town-b+)
+  (define-color-pair (+black/fort-b+ 9) +black+ +fort-b+)
+  (define-color-pair (+black/castle-b+ 10) +black+ +castle-b+)
+  (define-color-pair (+black/green+ 11) +black+ +green+)
+  (define-color-pair (+black/player-b+ 12) +black+ +player-b+)
+  (define-color-pair (+black/p-move-b+ 13) +black+ +p-move-b+)
+  (define-color-pair (+black/e-move-b+ 14) +black+ +e-move-b+)
+  (define-color-pair (+black/atk-b+    15) +black+ +atk-b+)
+  (define-color-pair (+black/yellow+   16) +black+ +yellow+)
+  (define-color-pair (+white/black+    17) +white+ +black+))
+
 ;;画面をクリア
 (defun clear-windows (&rest window)
   (dolist (win window)
@@ -90,6 +142,11 @@
   (dolist (win window)
     (charms:clear-window win)
     (charms:refresh-window win)))
+
+;;ウィンドウ壊す
+(defun destroy-windows (&rest window)
+  (dolist (win window)
+    (charms:destroy-window win)))
 
 
 ;;windowの枠
@@ -132,6 +189,7 @@
   (damage   0)
   (weight   0)
   (hit      0)
+  (tokkou   nil)
   (critical 0)
   (rangeMin 0)
   (rangeMax 0))
@@ -143,12 +201,12 @@
   (give_exp 0) ;;倒されたときに相手に与える経験値
   (movecost nil))
 
-;;ユニットデータ
+;;ユニットデータ 
 (defstruct unit
   (name nil) (job 0) (hp 0) (maxhp 0) (str 0) (skill 0) (give_exp 0)
   (w_lv 0) (agi 0) (luck 0) (def 0) (move 0) (weapon 0) (exp 0) (lv 1)
   (x 0) (y 0) (unit-num 0) (team 0) (alive? t) (act? nil) (rank 0)
-  (lvup nil))
+  (lvup nil) (item nil))
 
 
 
@@ -156,13 +214,17 @@
   (x 0)
   (y 0))
 
-
+;;ジョブ
+(defenum:defenum job
+    (+job_lord+ +job_paradin+ +job_s_knight+ +job_a_knight+ +job_archer+
+		+job_p_knight+ +job_pirate+ +job_hunter+ +job_thief+ +job_bandit+
+		+job_d_knight+ +job_shogun+ +job_mercenary+ +job_yusha+ +job_max+))
 
 ;;武器
 (defenum:defenum buki
     (+w_iron_sword+ +w_rapier+ +w_spear+ +w_silver_spear+ +w_hand_spear+
 		    +w_bow+ +w_steal_bow+ +w_cross_bow+ +w_ax+ +w_steal_ax+
-		    +w_silver_sword+ +w_max+))
+		    +w_silver_sword+ w_armor_killer+ +w_knight_killer+ +w_hammer+ +w_max+))
 
 ;;武器データ配列
 (defparameter *weapondescs*
@@ -171,35 +233,51 @@
                                :hit 100 :critical 0 :rangemin 1
                                :rangemax 1)
               (make-weapondesc :name "レイピア" :damage 5 :weight 1
-                    :hit 100 :critical 10 :rangemin 1
-                    :rangemax 1)
+			       :hit 100 :critical 10 :rangemin 1
+			       :tokkou (list +job_paradin+ +job_a_knight+ +job_s_knight+
+					     +job_shogun+) :rangemax 1)
               (make-weapondesc :name "やり" :damage 8 :weight 6
-                    :hit 80 :critical 0 :rangemin 1
-                    :rangemax 1)
+			       :hit 80 :critical 0 :rangemin 1
+			       :rangemax 1)
               (make-weapondesc :name "銀の槍" :damage 12 :weight 7
-                    :hit 80 :critical 0 :rangemin 1
-                    :rangemax 1)
+			       :hit 80 :critical 0 :rangemin 1
+			       :rangemax 1)
               (make-weapondesc :name "てやり" :damage 7 :weight 6
-                    :hit 70 :critical 0 :rangemin 1
-                    :rangemax 2)
+			       :hit 70 :critical 0 :rangemin 1
+			       :rangemax 2)
               (make-weapondesc :name "ゆみ" :damage 4 :weight 1
-                    :hit 90 :critical 0 :rangemin 2
-                    :rangemax 2)
+			       :hit 90 :critical 0 :rangemin 2
+			       :tokkou (list +job_p_knight+ +job_d_knight+)
+			       :rangemax 2)
               (make-weapondesc :name "鋼の弓" :damage 7 :weight 3
-                    :hit 80 :critical 0 :rangemin 2
-                    :rangemax 2)
+			       :hit 80 :critical 0 :rangemin 2
+			       :tokkou (list +job_p_knight+ +job_d_knight+)
+			       :rangemax 2)
               (make-weapondesc :name "ボウガン" :damage 5 :weight 2
-                    :hit 100 :critical 20 :rangemin 2
-                    :rangemax 2)
+			       :hit 100 :critical 20 :rangemin 2
+			       :tokkou (list +job_p_knight+ +job_d_knight+)
+			       :rangemax 2)
               (make-weapondesc :name "おの" :damage 7 :weight 7
-                    :hit 80 :critical 0 :rangemin 1
-                    :rangemax 1)
+			       :hit 80 :critical 0 :rangemin 1
+			       :rangemax 1)
               (make-weapondesc :name "鋼の斧" :damage 9 :weight 9
-                    :hit 70 :critical 0 :rangemin 1
-                    :rangemax 1)
+			       :hit 70 :critical 0 :rangemin 1
+			       :rangemax 1)
 	      (make-weapondesc :name "銀の剣" :damage 12 :weight 3
-                    :hit 100 :critical 0 :rangemin 1
-                    :rangemax 1)
+			       :hit 100 :critical 0 :rangemin 1
+			       :rangemax 1)
+	      (make-weapondesc :name "アーマーキラー" :damage 5 :weight 2
+			       :hit 80 :critical 0 :rangemin 1
+			       :tokkou (list +job_a_knight+ +job_shogun+)
+			       :rangemax 1)
+	      (make-weapondesc :name "ナイトキラー" :damage 5 :weight 5
+			       :hit 90 :critical 0 :rangemin 1
+			       :tokkou (list +job_s_knight+)
+			       :rangemax 1)
+	      (make-weapondesc :name "ハンマー" :damage 6 :weight 6
+			       :hit 70 :critical 0 :rangemin 1
+			       :tokkou (list +job_a_knight+ +job_shogun+)
+			       :rangemax 1)
 	      )))
 
 ;;地形
@@ -222,11 +300,7 @@
 (defenum:defenum team
     (+ally+ +enemy+ +type_max+))
 
-;;ジョブ
-(defenum:defenum job
-    (+job_lord+ +job_paradin+ +job_s_knight+ +job_a_knight+ +job_archer+
-		+job_p_knight+ +job_pirate+ +job_hunter+ +job_thief+ +job_bandit+
-		+job_d_knight+ +job_shogun+ +job_mercenary+ +job_yusha+ +job_max+))
+
 
 ;;ジョブデータ配列
 (defparameter *jobdescs*
@@ -236,7 +310,7 @@
                             :movecost #(-1 1 2 4 -1 1 2 2))
               (make-jobdesc :name "パラディン" :aa "聖" :give_exp 44
 			    :movecost #(-1 1 3 6 -1 1 2 2))
-              (make-jobdesc :name "Sナイト" :aa "騎" :give_exp 30
+              (make-jobdesc :name "Sナイト" :aa "騎" :give_exp 3
 			    :movecost #(-1 1 3 -1 -1 1 2 2))
               (make-jobdesc :name "Aナイト" :aa "重" :give_exp 32
 			    :movecost #(-1 1 3 -1 -1 1 2 2))
@@ -286,6 +360,7 @@
   (make-array 7 :initial-contents
         (list (make-unit :name "もげぞう" :job +job_lord+ :hp 18 :maxhp 18
                          :str 5 :skill 3 :w_lv 5 :agi 7 :luck 7 :def 7
+			 :item (list +w_rapier+ +w_hammer+ +w_cross_bow+)
 			 :lvup '(90 50 40 30 50 70 20 0)
                          :move 7 :weapon +w_rapier+ :team +ally+ :rank +leader+)
               (make-unit :name "ヨテガン" :job +job_paradin+ :hp 20 :maxhp 20

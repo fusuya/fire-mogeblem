@@ -1,4 +1,4 @@
-;;ロードしたらファイル消す
+;;TODO 
 ;;謎の文字列
 (defun rand-string ()
   (let ((str))
@@ -17,30 +17,6 @@
 		   (unit-skill u) (unit-w_lv u) (unit-agi u) (unit-luck u) (unit-def u)
 		   (unit-give_exp u) (unit-move u) (unit-team u) (unit-weapon u) (unit-rank u) (unit-lv u))))
 
-;;セーブする
-(defun save-suru (game)
-  (let* ((stage (game-stage game))
-	 (str (rand-string))
-	 (units-data (make-units-data-list (game-player_units game)))
-	 (lst units-data)
-	 (window (charms:make-window 30 6 5 5)))
-    (with-open-file (out str :direction :output
-			 :if-exists :supersede)
-      (format out "(setf *load-units-data* '~s)~%" lst)
-      (format out "(setf *load-stage* ~d)" stage))
-    (charms:write-string-at-point
-     window
-     "セーブしました" 1 1)
-    (charms:write-string-at-point
-     window
-     "復活の呪文は" 1 2)
-    (charms:write-string-at-point
-     window
-     (format nil "~a" str) 1 3)
-    (refresh-windows window)
-    (charms:get-char window)
-    (charms:destroy-window window)))
-
 ;;謎のコード
 (defun my-getstr (window)
   (cffi:with-foreign-string
@@ -48,13 +24,56 @@
     (charms/ll:wgetstr (charms::window-pointer window) str)
     (cffi:foreign-string-to-lisp str)))
 
+;;セーブする
+(defun save-suru (game)
+  ;; (charms:enable-echoing)
+  ;; (charms/ll:curs-set 1)
+  (let* ((stage (game-stage game))
+	 (path "./save/")
+	 (str1 (rand-string))
+	 (str (concatenate 'string path str1))
+	 (units-data (make-units-data-list (game-player_units game)))
+	 (lst units-data)
+	 (window (charms:make-window 60 8 5 5)))
+    ;; (charms:write-string-at-point
+    ;;  window
+    ;;  "セーブファイルに名前をつけてください(全角８文字まで)" 1 1)
+    ;; (charms:move-cursor window 1 2)
+    ;; (setf str1 (my-getstr window))
+    ;; (when (equal "" str1)
+    ;;   (setf str1 (rand-string)))
+    ;; (when (>= (length str1) 9) ;;９文字以上だと８文字に強制で短くする
+    ;;   (setf str1 (subseq str1 0 8)))
+    ;;(setf str (concatenate 'string path str1))
+    (with-open-file (out str :direction :output
+			 :if-exists :supersede)
+      (format out "(setf *load-units-data* '~s)~%" lst)
+      (format out "(setf *load-stage* ~d)" stage))
+    (charms:write-string-at-point
+     window
+     "セーブしました" 1 4)
+    (charms:write-string-at-point
+     window
+     "セーブファイル名は" 1 5)
+    (charms:write-string-at-point
+     window
+     (format nil "~a" str1) 1 6)
+    (refresh-windows window)
+    ;; (charms:disable-echoing)
+    ;; (charms/ll:curs-set 0)
+    (charms:get-char window)
+    (charms:destroy-window window)))
+
+
+
 
 
 (defun load-file (str)
-  (handler-case
-      (load str)
-    (file-error ()
-      nil)))
+  (when str
+    (handler-case
+	(load (concatenate 'string "./save/" str))
+      (file-error ()
+	nil))))
 
 
 ;;ロードする
@@ -70,30 +89,75 @@
 						u))))
 	  (game-stage game) *load-stage*)))
 
+;;ロードしたいファイルを選択する
+(defun select-load-file (cursor files num select-win)
+  (clear-windows select-win)
+  (loop for name in files
+     for y from 1 
+     do (let ((color +white/black+))
+	  (when (= y (1+ cursor))
+	    (setf color +black/white+))
+	  (with-colors (select-win color)
+	    (charms:write-string-at-point
+	     select-win
+	     (format nil "~A" name)
+	     1 y))))
+  (draw-windows-box select-win)
+  (refresh-windows select-win)
+  (let ((c (charms:get-char select-win)))
+     (cond
+       ((eql c #\z) ;;決定
+	(nth cursor files))
+       ((eql c #\q) ;;ゲーム終了
+	nil)
+       ((eql c (code-char charms/ll:key_up))
+        (if (> 0 (1- cursor))
+	    (select-load-file (1- num) files num select-win)
+	    (select-load-file (1- cursor) files num select-win)))
+       ((eql c (code-char charms/ll:key_down))
+	(if (>= (1+ cursor) num)
+	    (select-load-file 0 files num select-win)
+	    (select-load-file (1+ cursor) files num select-win)))
+       (t
+	(select-load-file cursor files num select-win)))))
+
 ;;復活の呪文入力
 (defun get-loadstr (game)
-  (charms:enable-echoing)
-  (charms/ll:curs-set 1)
-  (let ((window (charms:make-window 40 5 0 0)))
-    (charms:write-string-at-point
-     window
-     "復活の呪文を入力してください" 1 1)
-    (charms:move-cursor window 1 2)
-    (let ((loadstr (my-getstr window)))
-      (if (load-file loadstr)
-	  (progn (charms:write-string-at-point
-		  window
-		  "ロードしました" 1 3)
-		 (load-suru game)
-		 (delete-file loadstr)
-		 (setf *game-opening* nil
-		       *set-init-pos* t))
-	  (charms:write-string-at-point
-	   window
-	   "復活の呪文が間違ってます！！" 1 3))
-      (refresh-windows window)
-      (charms:disable-echoing)
-      (charms/ll:curs-set 0)
-      (charms:get-char window)
-      (charms:destroy-window window))))
+  ;;(charms:enable-echoing)
+  ;;(charms/ll:curs-set 1)
+  (let ((window (charms:make-window 40 5 0 0))
+	(files (map 'list #'pathname-name  (directory "./save/*"))))
+    (cond
+      (files
+	(charms:write-string-at-point
+	 window
+	 "ロードしたいファイルを選んでください" 1 1)
+	(charms:move-cursor window 1 2)
+	(refresh-windows window)
+	(let* ((num (length files))
+	       (select-win (charms:make-window 40 (+ num 2) 0 7)))
+	  (charms/ll:keypad (charms::window-pointer select-win) 1) ;;カーソルキー
+	  (if (load-file (select-load-file 0 files num select-win))
+	      (progn (charms:write-string-at-point
+		      window
+		      "ロードしました" 1 3)
+		     (load-suru game)
+		     ;;(delete-file loadstr) ;;ろーどしたファイル削除
+		     (setf *game-opening* nil
+			   *set-init-pos* t))
+	      (charms:write-string-at-point
+	       window
+	       "復活の呪文が間違ってます！！" 1 3))
+	  (erase-window select-win)
+	  (destroy-windows select-win)))
+      (t
+       (charms:write-string-at-point
+	 window
+	 "セーブファイルがありません" 1 1)))
+    (refresh-windows window)
+   ;; (charms:disable-echoing)
+    ;;(charms/ll:curs-set 0)
+    (charms:get-char window)
+    (erase-window window)
+    (destroy-windows window)))
 
