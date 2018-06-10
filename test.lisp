@@ -91,7 +91,6 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
   (aref *weapondescs* (unit-weapon u)))
 
 
-
 ;;初期位置選択
 ;;プレイヤーのマップ初期位置設定
 (defun set-start-pos-player (c x y game)
@@ -203,6 +202,12 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
                 (unit-alive? unit))
            (return-from get-unit unit))))
 
+;;武器の特攻リスト
+(defun buki-tokkou-str (tokkou)
+  (if tokkou
+      (format nil "~{~a~^ ~}" (map 'list #'(lambda (x) (jobdesc-aa (aref *jobdescs* x))) tokkou))
+      "なし"))
+
 ;;うまいことまとめたい
 ;;lvup = ステータス上昇率 (HP 力 技 武器 速さ 運 守備 魔防)
 ;;レベルアップしたときの上昇したステータス表示
@@ -248,38 +253,38 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
     (if (nth 3 lvup)
 	(format nil "武器Lv: ~2d ↑ +1" (incf (unit-w_lv unit)))
 	(format nil "武器Lv: ~2d" (unit-w_lv unit)))
-    1 6)
+    18 3)
    (charms:write-string-at-point
     unit-win
     (if (nth 4 lvup)
 	(format nil "素早さ: ~2d ↑ +1" (incf (unit-agi unit)))
 	(format nil "素早さ: ~2d" (unit-agi unit)))
-    1 7)
+    18 4)
    (charms:write-string-at-point
     unit-win
     (if (nth 5 lvup)
 	(format nil " 幸運 : ~2d ↑ +1" (incf (unit-luck unit)))
 	(format nil " 幸運 : ~2d" (unit-luck unit)))
-    1 8)
+    1 6)
    (charms:write-string-at-point
     unit-win
     (if (nth 6 lvup)
 	(format nil "守備力: ~2d ↑ +1" (incf (unit-def unit)))
 	(format nil "守備力: ~2d" (unit-def unit)))
-    1 9)
+    18 5)
    (charms:write-string-at-point
     unit-win
     (format nil "移動力: ~2d" (unit-move unit))
-    1 10)
+    18 6)
    (charms:write-string-at-point
     unit-win
     (format nil " 武器 : ~a" w-name)
-    1 11)
+    1 7)
    (charms:write-string-at-point
     unit-win
     (format nil "        威力:~2d 重量:~2d 命中:~2d~%         必殺:~2d レンジ:~d〜~d"
      w-dmg w-wei w-hit w-cri w-ranmin w-ranmax)
-    1 12)
+    1 8)
    (draw-window-box unit-win) ;;枠
    (charms:write-string-at-point
     unit-win
@@ -295,6 +300,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
          (w-hit (weapondesc-hit weapon))
          (w-wei (weapondesc-weight weapon))
          (w-cri (weapondesc-critical weapon))
+	 (tokkou (weapondesc-tokkou weapon))
          (w-ranmin (weapondesc-rangemin weapon))
          (w-ranmax (weapondesc-rangemax weapon)))
    (charms:write-string-at-point
@@ -303,8 +309,12 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
     1 1)
    (charms:write-string-at-point
     unit-win
-    (format nil "  Lv  : ~2d    exp:~2d" (unit-lv unit) (unit-exp unit))
+    (format nil "  Lv  : ~2d" (unit-lv unit))
     1 2)
+   (charms:write-string-at-point
+    unit-win
+    (format nil " exp  : ~2d" (unit-exp unit))
+    18 2)
    (charms:write-string-at-point
     unit-win
     (format nil "  HP  : ~2d/~2d" (unit-hp unit) (unit-maxhp unit))
@@ -320,32 +330,36 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
    (charms:write-string-at-point
     unit-win
     (format nil "武器Lv: ~2d" (unit-w_lv unit))
-    1 6)
+    18 3)
    (charms:write-string-at-point
     unit-win
     (format nil "素早さ: ~2d" (unit-agi unit))
-    1 7)
+    18 4)
    (charms:write-string-at-point
     unit-win
     (format nil " 幸運 : ~2d" (unit-luck unit))
-    1 8)
+    1 6)
    (charms:write-string-at-point
     unit-win
     (format nil "守備力: ~2d" (unit-def unit))
-    1 9)
+    18 5)
    (charms:write-string-at-point
     unit-win
     (format nil "移動力: ~2d" (unit-move unit))
-    1 10)
+    18 6)
    (charms:write-string-at-point
     unit-win
     (format nil " 武器 : ~a" w-name)
-    1 11)
+    1 7)
    (charms:write-string-at-point
     unit-win
     (format nil "        威力:~2d 重量:~2d 命中:~2d~%         必殺:~2d レンジ:~d〜~d"
      w-dmg w-wei w-hit w-cri w-ranmin w-ranmax)
-    1 12)))
+    1 8)
+   (charms:write-string-at-point
+    unit-win
+    (format nil "特攻:~a" (buki-tokkou-str tokkou))
+     9 10)))
 
 ;;地形の色取得
 (defun get-cell-color (cell can-move)
@@ -1041,17 +1055,43 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 	     (setf *game-play* nil)))
     (setf *set-init-pos* nil)))
 
-;;装備選択 TODO
+;;装備変更 TODO
 (defun equip-mode (unit cursor)
-  (let* ((window (charms:make-window 18 6 16 (+ *map-h* 2)))
-	 (item-l (unit-item unit)) (len (length item)))
+  (let* ((item-l (unit-item unit)) (len (length item-l)) ;;持ってる武器の数
+	 (window (charms:make-window 18 (+ len 2) 16 (+ *map-h* 2))))
+    (charms/ll:keypad (charms::window-pointer window) 1)
     (loop for i from 1
        for item in item-l
-       do (let ((buki (aref *weapondescs* item)))
-	    (charms:write-string-at-point
-	     window
-	     (format nil "~a" (weapondesc-name buki)) 1 i)))
-    (refresh-windows window)))
+       do (let ((buki (aref *weapondescs* item))
+		(color (if (= i (1+ cursor)) +black/white+ +white/black+)))
+	    (with-colors (window color)
+	      (charms:write-string-at-point
+	       window
+	       (if (= item (unit-weapon unit))
+		   (format nil "E ~a" (weapondesc-name buki))
+		   (format nil "  ~a" (weapondesc-name buki)))
+	       1 i))))
+    (draw-windows-box window)
+    (charms:write-string-at-point
+     window "武器変更" 5 0)
+    (refresh-windows window)
+    (let ((c (charms:get-char window)))
+      (destroy-windows window)
+      (cond
+	((eql c #\z) ;;決定
+	 (setf (unit-weapon unit) (nth cursor item-l)))
+	((eql c #\x) ;;キャンセル
+	 nil)
+	((eql c (code-char charms/ll:key_up))
+	 (if (> 0 (1- cursor))
+	     (equip-mode unit (1- len))
+	     (equip-mode unit (1- cursor))))
+	((eql c (code-char charms/ll:key_down))
+	 (if (>= (1+ cursor) len)
+	     (equip-mode unit 0)
+	     (equip-mode unit (1+ cursor))))
+	(t
+	 (equip-mode unit cursor))))))
 
 ;;キー入力
 (defun key-down-event (game map-win unit-win atk-win)
@@ -1064,8 +1104,8 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
        (setf *game-play* nil))
       ((eql c #\e)
        (let ((unit (get-unit (game-cursor_x game) (game-cursor_y game) (game-units game))))
-	 (when (and unit (= (unit-team unit) +ally+))
-	   (equip-mode unit))))
+	 (when (and unit (= (unit-team unit) +ally+) (null (unit-act? unit)))
+	   (equip-mode unit 0))))
       ((eql c #\x)
        (cond
 	 ;;移動したいユニットを選ぶフェイズ
@@ -1208,10 +1248,10 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
      (loop named hello-world
 	while *game-play*
 	;;with test-win = (charms:make-window 52 3 0 (+ 2 *map-h* 15))
-	with unit-win = (charms:make-window 34 15 0 (+ 2 *map-h*)) ;;ユニットデータウィンドウ
+	with unit-win = (charms:make-window 34 12 0 (+ 2 *map-h*)) ;;ユニットデータウィンドウ
 	with atk-win = (charms:make-window 36 8 0 (+ 2 *map-h*))   ;;攻撃メッセージウィンドウ
 	with cell-win = (charms:make-window 18 5 35 (+ 2 *map-h*)) ;;地形データウィンドウ
-	with mes-win = (charms:make-window 24 6 35 (+ 6 (+ 2 *map-h*))) ;;なんかメッセージウィンドウ
+	with mes-win = (charms:make-window 24 6 35 (+ 5 (+ 2 *map-h*))) ;;なんかメッセージウィンドウ
 	do
             (cond
               (*game-opening* ;;オープニング

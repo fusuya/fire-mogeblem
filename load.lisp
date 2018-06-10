@@ -1,4 +1,4 @@
-(ql:quickload '(cl-charms  alexandria defenum cffi))
+(ql:quickload '(cl-charms  alexandria defenum cffi) :silent t)
 
 (setf sb-ext:*invoke-debugger-hook*
       (lambda (condition hook)

@@ -15,7 +15,8 @@
   (loop for u across units
      collect (list (unit-name u) (unit-job u) (unit-hp u) (unit-maxhp u) (unit-str u)
 		   (unit-skill u) (unit-w_lv u) (unit-agi u) (unit-luck u) (unit-def u)
-		   (unit-give_exp u) (unit-move u) (unit-team u) (unit-weapon u) (unit-rank u) (unit-lv u))))
+		   (unit-give_exp u) (unit-move u) (unit-team u) (unit-weapon u) (unit-rank u)
+		   (unit-lv u) (unit-lvup u) (unit-item u))))
 
 ;;謎のコード
 (defun my-getstr (window)
@@ -54,14 +55,12 @@
      "セーブしました" 1 4)
     (charms:write-string-at-point
      window
-     "セーブファイル名は" 1 5)
-    (charms:write-string-at-point
-     window
-     (format nil "~a" str1) 1 6)
+     (format nil "復活の呪文は~% ~a~% です" str1) 1 5)
     (refresh-windows window)
     ;; (charms:disable-echoing)
     ;; (charms/ll:curs-set 0)
     (charms:get-char window)
+    (erase-window window)
     (charms:destroy-window window)))
 
 
@@ -85,7 +84,7 @@
 			 collect (apply #'make-unit
 					(mapcan #'list
 						'(:name :job :hp :maxhp :str :skill
-						  :w_lv :agi :luck :def :give_exp :move :team :weapon :rank :lv)
+						  :w_lv :agi :luck :def :give_exp :move :team :weapon :rank :lv :lvup :item)
 						u))))
 	  (game-stage game) *load-stage*)))
 
@@ -123,21 +122,22 @@
 
 ;;復活の呪文入力
 (defun get-loadstr (game)
-  ;;(charms:enable-echoing)
-  ;;(charms/ll:curs-set 1)
+  (charms:enable-echoing)
+  (charms/ll:curs-set 1)
   (let ((window (charms:make-window 40 5 0 0))
-	(files (map 'list #'pathname-name  (directory "./save/*"))))
+	(files (map 'list #'pathname-name  (directory "./save/*")))) ;;セーブファイル名リスト
     (cond
       (files
 	(charms:write-string-at-point
 	 window
-	 "ロードしたいファイルを選んでください" 1 1)
+	 "復活の呪文を入力してください" 1 1)
 	(charms:move-cursor window 1 2)
 	(refresh-windows window)
-	(let* ((num (length files))
-	       (select-win (charms:make-window 40 (+ num 2) 0 7)))
-	  (charms/ll:keypad (charms::window-pointer select-win) 1) ;;カーソルキー
-	  (if (load-file (select-load-file 0 files num select-win))
+	(let* ((str (my-getstr window)));;(num (length files))
+	       ;;(select-win (charms:make-window 40 (+ num 2) 0 7)))
+	  ;;(charms/ll:keypad (charms::window-pointer select-win) 1) ;;カーソルキー
+	  (if (and (find str files :test #'equal) ;;セーブフォルダにあるファイルか
+		   (load-file str));;(select-load-file 0 files num select-win))
 	      (progn (charms:write-string-at-point
 		      window
 		      "ロードしました" 1 3)
@@ -147,16 +147,16 @@
 			   *set-init-pos* t))
 	      (charms:write-string-at-point
 	       window
-	       "復活の呪文が間違ってます！！" 1 3))
-	  (erase-window select-win)
-	  (destroy-windows select-win)))
+	       "復活の呪文が間違ってます！！" 1 3))))
+	  ;;(erase-window select-win)
+	  ;;(destroy-windows select-win)))
       (t
        (charms:write-string-at-point
 	 window
 	 "セーブファイルがありません" 1 1)))
     (refresh-windows window)
-   ;; (charms:disable-echoing)
-    ;;(charms/ll:curs-set 0)
+    (charms:disable-echoing)
+    (charms/ll:curs-set 0)
     (charms:get-char window)
     (erase-window window)
     (destroy-windows window)))

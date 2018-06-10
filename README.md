@@ -5,7 +5,7 @@ ubuntu17.10
 
 - 必要なもの  
  - libncurses5-dev  
-(ubuntuなら sudo apt install libncurses5-dev  )  
+  - (ubuntuなら sudo apt install libncurses5-dev  )  
  - lisp環境  
  roswellかsbcl+quicklisp  
 
@@ -16,9 +16,10 @@ ubuntu17.10
  sbcl --load load.lisp  
  すれば動くはず
 
-- キー入力
-z:決定
-x:キャンセル
-↑→↓←(カーソルキー):カーソル移動
-r:ターン終了
-q:ゲーム終了
+- キー入力  
+z:決定  
+x:キャンセル  
+↑→↓←(カーソルキー):カーソル移動  
+r:ターン終了  
+q:ゲーム終了  
+e:装備変更(移動前ユニット)  

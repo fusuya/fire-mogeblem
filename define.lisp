@@ -186,6 +186,7 @@
 ;;武器データ
 (defstruct weapondesc
   (name   nil)
+  (num      0) ;;使用可能回数
   (damage   0)
   (weight   0)
   (hit      0)
@@ -224,7 +225,8 @@
 (defenum:defenum buki
     (+w_iron_sword+ +w_rapier+ +w_spear+ +w_silver_spear+ +w_hand_spear+
 		    +w_bow+ +w_steal_bow+ +w_cross_bow+ +w_ax+ +w_steal_ax+
-		    +w_silver_sword+ w_armor_killer+ +w_knight_killer+ +w_hammer+ +w_max+))
+		    +w_silver_sword+ w_armor_killer+ +w_knight_killer+ +w_hammer+
+		    +w_dragon_killer+ +w_max+))
 
 ;;武器データ配列
 (defparameter *weapondescs*
@@ -235,7 +237,8 @@
               (make-weapondesc :name "レイピア" :damage 5 :weight 1
 			       :hit 100 :critical 10 :rangemin 1
 			       :tokkou (list +job_paradin+ +job_a_knight+ +job_s_knight+
-					     +job_shogun+) :rangemax 1)
+					     +job_shogun+)
+			       :rangemax 1)
               (make-weapondesc :name "やり" :damage 8 :weight 6
 			       :hit 80 :critical 0 :rangemin 1
 			       :rangemax 1)
@@ -277,6 +280,10 @@
 	      (make-weapondesc :name "ハンマー" :damage 6 :weight 6
 			       :hit 70 :critical 0 :rangemin 1
 			       :tokkou (list +job_a_knight+ +job_shogun+)
+			       :rangemax 1)
+	      (make-weapondesc :name "ドラゴンキラー" :damage 6 :weight 2
+			       :hit 80 :critical 0 :rangemin 1
+			       :tokkou (list +job_d_knight+)
 			       :rangemax 1)
 	      )))
 
@@ -338,11 +345,17 @@
 
 (defparameter *units-data* ;;A~Gも敵データにしてよい
   ;;       name job hp maxhp str skill w_lv agi luck def give-exp move weapon rank
-  `((A . ("プロピアキャスター" ,+job_pirate+   24 24 7  3  7  8  0  6 34 6 ,+enemy+ ,+w_steal_ax+ ,+boss+)) ;;ステージ１ボス
-    (B . ("もび太"     ,+job_bandit+   27 27 8  3  7  8  0  6 36  6 ,+enemy+ ,+w_steal_ax+ ,+boss+)) ;;ステージ２ボス
-    (C . ("ハツネツA"  ,+job_shogun+   28 28 9  1 3  4  0  14 50  5 ,+enemy+ ,+w_silver_spear+ ,+boss+)) ;;ステージ３ボス
-    (D . ("リスパー"   ,+job_paradin+  27 27 8  7 10 11  0  9 44 10 ,+enemy+ ,+w_rapier+ ,+boss+)) ;;ステージ4ボス
-    (E . ("モーゲ皇帝" ,+job_yusha+    30 30 8 14 10 14  0 10 46  7 ,+enemy+ ,+w_silver_sword+ ,+boss+)) ;;ステージ5ボス
+    ;;ステージ１ボス
+  `((A . ("プロピアキャスター" ,+job_pirate+   24 24 7  3  7  8  0  6 34 6 ,+enemy+ ,+w_steal_ax+ ,+boss+))
+    ;;ステージ２ボス
+    (B . ("もび太"     ,+job_bandit+   27 27 8  3  7  8  0  6 36  6 ,+enemy+ ,+w_steal_ax+ ,+boss+))
+    ;;ステージ３ボス
+    (C . ("ハツネツA"  ,+job_shogun+   28 28 9  1 3  4  0  14 50  5 ,+enemy+ ,+w_silver_spear+ ,+boss+))
+    ;;ステージ4ボス
+    (D . ("リスパー"   ,+job_paradin+  27 27 8  7 10 11  0  9 44 10 ,+enemy+ ,+w_rapier+ ,+boss+))
+    ;;ステージ5ボス
+    (E . ("モーゲ皇帝" ,+job_yusha+    30 30 8 14 10 14  0 10 46  7 ,+enemy+ ,+w_silver_sword+ ,+boss+))
+    ;;以下雑魚
     (F . ("ゴードン"   ,+job_archer+   16 16 5  1  5  4  4  6 28  5 ,+ally+ ,+w_cross_bow+ ,+common+))
     (G . ("シーダ"     ,+job_p_knight+ 16 16 3  6  7 12  9  7 36  8 ,+ally+ ,+w_iron_sword+ ,+common+))
     (H . ("ペカ民兵"   ,+job_hunter+   18 18 6  1  5  5  0  3 26  6 ,+enemy+ ,+w_bow+ ,+common+))
@@ -360,31 +373,37 @@
   (make-array 7 :initial-contents
         (list (make-unit :name "もげぞう" :job +job_lord+ :hp 18 :maxhp 18
                          :str 5 :skill 3 :w_lv 5 :agi 7 :luck 7 :def 7
-			 :item (list +w_rapier+ +w_hammer+ +w_cross_bow+)
+			 :item (list +w_rapier+)
 			 :lvup '(90 50 40 30 50 70 20 0)
                          :move 7 :weapon +w_rapier+ :team +ally+ :rank +leader+)
               (make-unit :name "ヨテガン" :job +job_paradin+ :hp 20 :maxhp 20
 			 :str 7 :skill 10 :w_lv 10 :agi 8 :luck 1 :def 9
+			 :item (list +w_spear+ +w_iron_sword+)
 			 :lvup '(10 10 10 0 10 0 0 0)
 			 :move 10 :weapon +w_iron_sword+ :team +ally+ :rank +common+)
               (make-unit :name "カイン" :job +job_s_knight+ :hp 18 :maxhp 18
 			 :lvup '(90 30 60 60 60 50 20 0)
+			 :item (list +w_spear+ +w_dragon_killer+)
 			 :str 7 :skill 5 :w_lv 5 :agi 6 :luck 3 :def 7
 			 :move 9 :weapon +w_spear+ :team +ally+ :rank +common+)
               (make-unit :name "アベル" :job +job_s_knight+ :hp 18 :maxhp 18
 			 :lvup '(70 40 50 70 50 40 20 0)
+			 :item (list +w_hand_spear+)
 			 :str 6 :skill 7 :w_lv 6 :agi 7 :luck 2 :def 7
 			 :move 9 :weapon +w_hand_spear+ :team +ally+ :rank +common+)
               (make-unit :name "ドーガ" :job +job_a_knight+ :hp 18 :maxhp 18
 			 :lvup '(60 20 40 20 40 20 10 0)
+			 :item (list +w_iron_sword+ +w_hammer+)
 			 :str 7 :skill 3 :w_lv 4 :agi 3 :luck 1 :def 11
 			 :move 5 :weapon +w_iron_sword+ :team +ally+ :rank +common+)
               (make-unit :name "ゴードン" :job +job_archer+ :hp 16 :maxhp 16
 			 :lvup '(40 30 30 50 30 40 10 0)
+			 :item (list +w_cross_bow+)
 			 :str 5 :skill 1 :w_lv 5 :agi 4 :luck 4 :def 6
 			 :move 5 :weapon +w_cross_bow+ :team +ally+ :rank +common+)
               (make-unit :name "シーダ" :job +job_p_knight+ :hp 16 :maxhp 16
 			 :lvup '(50 20 70 80 90 70 20 0)
+			 :item (list +w_iron_sword+ +w_knight_killer+)
 			 :str 3 :skill 6 :w_lv 7 :agi 12 :luck 9 :def 7
 			 :move 8 :weapon +w_iron_sword+ :team +ally+ :rank +common+))))
 
