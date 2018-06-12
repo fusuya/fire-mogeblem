@@ -225,7 +225,7 @@
 (defenum:defenum buki
     (+w_iron_sword+ +w_rapier+ +w_spear+ +w_silver_spear+ +w_hand_spear+
 		    +w_bow+ +w_steal_bow+ +w_cross_bow+ +w_ax+ +w_steal_ax+
-		    +w_silver_sword+ w_armor_killer+ +w_knight_killer+ +w_hammer+
+		    +w_silver_sword+ +w_armor_killer+ +w_knight_killer+ +w_hammer+
 		    +w_dragon_killer+ +w_max+))
 
 ;;武器データ配列
@@ -350,14 +350,14 @@
     ;;ステージ２ボス
     (B . ("もび太"     ,+job_bandit+   27 27 8  3  7  8  0  6 36  6 ,+enemy+ ,+w_steal_ax+ ,+boss+))
     ;;ステージ３ボス
-    (C . ("ハツネツA"  ,+job_shogun+   28 28 9  1 3  4  0  14 50  5 ,+enemy+ ,+w_silver_spear+ ,+boss+))
+    (C . ("ハツネツA"  ,+job_shogun+   28 28 9  1 3  4  0  14 50  5 ,+enemy+ ,+w_spear+ ,+boss+))
     ;;ステージ4ボス
     (D . ("リスパー"   ,+job_paradin+  27 27 8  7 10 11  0  9 44 10 ,+enemy+ ,+w_rapier+ ,+boss+))
     ;;ステージ5ボス
     (E . ("モーゲ皇帝" ,+job_yusha+    30 30 8 14 10 14  0 10 46  7 ,+enemy+ ,+w_silver_sword+ ,+boss+))
     ;;以下雑魚
-    (F . ("ゴードン"   ,+job_archer+   16 16 5  1  5  4  4  6 28  5 ,+ally+ ,+w_cross_bow+ ,+common+))
-    (G . ("シーダ"     ,+job_p_knight+ 16 16 3  6  7 12  9  7 36  8 ,+ally+ ,+w_iron_sword+ ,+common+))
+    (F . ("ペカ民兵"   ,+job_pirate+   18 18 5  1  5  6  0  4 24  6 ,+enemy+ ,+w_hammer+ ,+common+))
+    (G . ("ペカ民兵"   ,+job_s_knight+ 16 16 5  2  8  6  0  7 30  9 ,+enemy+ ,+w_armor_killer+ ,+common+))
     (H . ("ペカ民兵"   ,+job_hunter+   18 18 6  1  5  5  0  3 26  6 ,+enemy+ ,+w_bow+ ,+common+))
     (I . ("ペカ民兵"   ,+job_hunter+   18 18 6  1  5  5  0  3 26  6 ,+enemy+ ,+w_bow+ ,+common+))
     (J . ("ペカ民兵"   ,+job_thief+    16 16 3  1  2  9  0  2 40  7 ,+enemy+ ,+w_iron_sword+ ,+common+))
@@ -388,7 +388,7 @@
 			 :move 9 :weapon +w_spear+ :team +ally+ :rank +common+)
               (make-unit :name "アベル" :job +job_s_knight+ :hp 18 :maxhp 18
 			 :lvup '(70 40 50 70 50 40 20 0)
-			 :item (list +w_hand_spear+)
+			 :item (list +w_hand_spear+ +w_armor_killer+)
 			 :str 6 :skill 7 :w_lv 6 :agi 7 :luck 2 :def 7
 			 :move 9 :weapon +w_hand_spear+ :team +ally+ :rank +common+)
               (make-unit :name "ドーガ" :job +job_a_knight+ :hp 18 :maxhp 18

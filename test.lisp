@@ -45,8 +45,8 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 			                         :f (manhatan start goal))))
         (close nil))
     (loop for i from 0 do
-      (if (null open)
-	        (return (print "hoge")))
+      (when (null open)
+	(return "hoge")) ;;ゴールまでの道がない
       (let ((n (minimum open #'< #'node-f)))
 	      (setf open (remove n open :test #'equalp))
 	      (push n close)
@@ -665,8 +665,8 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
         (when (= (unit-rank def-unit) +leader+)
           (setf *game-over?* t))
 	(if (= (unit-rank def-unit) +boss+) ;;bossだったら+10経験値
-	    (incf (unit-exp atk-unit) (+ 10 (unit-give_exp def-unit)))
-	    (incf (unit-exp atk-unit) (unit-give_exp def-unit)))
+	    (incf (unit-exp atk-unit) (+ 10 (* 2 (unit-give_exp def-unit))))
+	    (incf (unit-exp atk-unit) (* 2 (unit-give_exp def-unit))))
         (setf (unit-alive? def-unit) nil) ;;死亡
         (dead-msg def-unit atk-unit atk-win))
        ((>= 0 (unit-hp atk-unit)) ;;atk側が倒された
@@ -711,18 +711,31 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
   (loop for u across units
         when (= team (unit-team u))
         do
-        (setf (unit-act? u) nil)))
+       (setf (unit-act? u) nil)))
+
+;;相手ユニットがいて移動できないcellリストを返す
+(defun get-block-cell (unit units)
+  (mapcar #'(lambda (x) (list (unit-x x) (unit-y x)))
+              (remove-if #'(lambda (x) (or (null (unit-alive? x))
+                                           (= (unit-team x) (unit-team unit))))
+                             (coerce units 'list))))
 
 ;;unitに一番近いキャラ
-(defun near-chara (unit units r-min)
-  (first
-    (sort (remove-if (lambda (u) (or (not (unit-alive? u))
-                                     (= (unit-team u) (unit-team unit))
-				     (> r-min (unit-dist unit u)))) ;;最小射程以下の敵消す
-                     (coerce units 'list))
-     #'<
-     :key (lambda (u)
-            (m-dist (unit-x unit) (unit-y unit) (unit-x u) (unit-y u))))))
+(defun near-chara (unit units r-min cells)
+  (let ((movecost (jobdesc-movecost (unit-jobdesc unit)))
+	(start (list (unit-x unit) (unit-y unit)))) ;;自分の位置
+    (first
+     (sort (remove-if (lambda (u)
+			(let* ((goal (list (unit-x u) (unit-y u)))
+			       (block-cell (remove goal (get-block-cell unit units) :test #'equal)))
+			  (or (not (unit-alive? u))
+			      (equal "hoge" (astar start goal cells movecost block-cell))
+			      (= (unit-team u) (unit-team unit))
+			      (> r-min (unit-dist unit u))))) ;;最小射程以下の敵消す
+		      (coerce units 'list))
+	   #'<
+	   :key (lambda (u)
+		  (m-dist (unit-x unit) (unit-y unit) (unit-x u) (unit-y u)))))))
 
 ;;敵が動いたら画面描画
 (defun show-enemy-move (units cells map-win sleep-time)
@@ -771,12 +784,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
          (movecost (jobdesc-movecost (unit-jobdesc unit))))
     (can-move-list (list x y) units move movecost cells team '())))
 
-;;相手ユニットがいて移動できないcellリストを返す
-(defun get-block-cell (unit units)
-  (mapcar #'(lambda (x) (list (unit-x x) (unit-y x)))
-              (remove-if #'(lambda (x) (or (null (unit-alive? x))
-                                           (= (unit-team x) (unit-team unit))))
-                             (coerce units 'list))))
+
 
 
 ;;目標に一番近くなる移動可能な場所までの道を返す
@@ -823,7 +831,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 	 (let ((unit-oru? (get-unit (car path) (cadr path) units)))
 	   (setf (unit-x unit) (car path)
 		 (unit-y unit) (cadr path))
-	   (setf target (near-chara unit units r-min)) ;;一歩動いたらターゲット再設定
+	   (setf target (near-chara unit units r-min cells)) ;;一歩動いたらターゲット再設定
 	   ;;敵が一歩動いたら画面描画
 	   (show-enemy-move units cells map-win 0.15)
 	   ;;次の移動先のマスにユニットがいないand攻撃範囲に敵がいたら移動やめて攻撃にうつる
@@ -859,13 +867,13 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 	 (let* ((weapon (unit-weapondesc u))
 		(r-min (weapondesc-rangemin weapon))
 		(r-max (weapondesc-rangemax weapon))
-		(target (near-chara u units r-min))
+		(target (near-chara u units r-min cells))
 		(dist (unit-dist u target)))
 	   (if (>= r-max dist r-min) ;;攻撃範囲に相手がいる
 	       (enemy-attack u target cells atk-win)
 	       (progn ;;移動後に攻撃範囲に相手がいたら攻撃
 		 (enemy-move u target r-min r-max units cells map-win)
-		 (setf target (near-chara u units r-min))
+		 (setf target (near-chara u units r-min cells))
 		 (when (>= r-max (unit-dist u target) r-min)
 		   (enemy-attack u target cells atk-win)))))
 	 (gamen-refresh map-win))))
