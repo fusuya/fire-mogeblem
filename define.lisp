@@ -186,6 +186,7 @@
 ;;武器データ
 (defstruct weapondesc
   (name   nil)
+  (price    0) ;;価格
   (num      0) ;;使用可能回数
   (damage   0)
   (weight   0)
@@ -221,19 +222,19 @@
 		+job_p_knight+ +job_pirate+ +job_hunter+ +job_thief+ +job_bandit+
 		+job_d_knight+ +job_shogun+ +job_mercenary+ +job_yusha+ +job_max+))
 
-;;武器
+;;武器 heal:傷薬
 (defenum:defenum buki
     (+w_iron_sword+ +w_rapier+ +w_spear+ +w_silver_spear+ +w_hand_spear+
 		    +w_bow+ +w_steal_bow+ +w_cross_bow+ +w_ax+ +w_steal_ax+
 		    +w_silver_sword+ +w_armor_killer+ +w_knight_killer+ +w_hammer+
-		    +w_dragon_killer+ +w_max+))
+		    +w_dragon_killer+ +w_live+ +w_heal+ +w_max+))
 
 ;;武器データ配列
 (defparameter *weapondescs*
   (make-array +w_max+ :initial-contents
         (list (make-weapondesc :name "鉄の剣" :damage 5 :weight 2
                                :hit 100 :critical 0 :rangemin 1
-                               :rangemax 1)
+                               :rangemax 1 :price 320)
               (make-weapondesc :name "レイピア" :damage 5 :weight 1
 			       :hit 100 :critical 10 :rangemin 1
 			       :tokkou (list +job_paradin+ +job_a_knight+ +job_s_knight+
@@ -268,11 +269,11 @@
 			       :rangemax 1)
 	      (make-weapondesc :name "銀の剣" :damage 12 :weight 3
 			       :hit 100 :critical 0 :rangemin 1
-			       :rangemax 1)
+			       :rangemax 1 :price 2000)
 	      (make-weapondesc :name "アーマーキラー" :damage 5 :weight 2
 			       :hit 80 :critical 0 :rangemin 1
 			       :tokkou (list +job_a_knight+ +job_shogun+)
-			       :rangemax 1)
+			       :rangemax 1 :price 760)
 	      (make-weapondesc :name "ナイトキラー" :damage 5 :weight 5
 			       :hit 90 :critical 0 :rangemin 1
 			       :tokkou (list +job_s_knight+)
@@ -284,6 +285,12 @@
 	      (make-weapondesc :name "ドラゴンキラー" :damage 6 :weight 2
 			       :hit 80 :critical 0 :rangemin 1
 			       :tokkou (list +job_d_knight+)
+			       :rangemax 1 :price 3000)
+	      (make-weapondesc :name "ライブ" :damage 0 :weight 0
+			       :hit 100 :critical 0 :rangemin 1
+			       :rangemax 1)
+	      (make-weapondesc :name "傷薬" :damage 0 :weight 0
+			       :hit 100 :critical 0 :rangemin 1
 			       :rangemax 1)
 	      )))
 
@@ -373,7 +380,7 @@
   (make-array 7 :initial-contents
         (list (make-unit :name "もげぞう" :job +job_lord+ :hp 18 :maxhp 18
                          :str 5 :skill 3 :w_lv 5 :agi 7 :luck 7 :def 7
-			 :item (list +w_rapier+)
+			 :item (list +w_rapier+ +w_heal+ +w_heal+)
 			 :lvup '(90 50 40 30 50 70 20 0)
                          :move 7 :weapon +w_rapier+ :team +ally+ :rank +leader+)
               (make-unit :name "ヨテガン" :job +job_paradin+ :hp 20 :maxhp 20

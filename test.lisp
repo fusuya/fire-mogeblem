@@ -1,5 +1,4 @@
-;;TODO セーブデータをsaveフォルダにつくる　ロードはセーブフォルダのファイルを表示
-;;持ち物に武器を複数もてるようにする　装備武器を選ぶ
+;;TODO 買い物
 ;;bordeaux-threads
 
 
@@ -727,7 +726,8 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
     (first
      (sort (remove-if (lambda (u)
 			(let* ((goal (list (unit-x u) (unit-y u)))
-			       (block-cell (remove goal (get-block-cell unit units) :test #'equal)))
+			       (block-cell (remove goal (get-block-cell unit units)
+						   :test #'equal)))
 			  (or (not (unit-alive? u))
 			      (equal "hoge" (astar start goal cells movecost block-cell))
 			      (= (unit-team u) (unit-team unit))
@@ -903,6 +903,23 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
   (init-move-area (game-move_area game))
   (init-move-area (game-atk_area game)))
 
+;;買い物 
+(defun kaimono-mode (game)
+  (let ((window (charms:make-window 40 (+ +w_max+ 2) 5 5)))
+    (loop for i from 0 below +w_max+
+       do (charms:write-string-at-point
+	   window
+	   (format nil "~a" (weapondesc-name (aref *weapondescs* i)))
+	   1 (1+ i))
+	 (charms:write-string-at-point
+	   window
+	   (format nil "~4d モゲ" (weapondesc-price (aref *weapondescs* i)))
+	   16 (1+ i)))
+    (draw-windows-box window)
+    (charms:write-string-at-point window "秘密のお店" 15 0)
+    (refresh-windows window)
+    (charms:get-char window)))
+
 ;;game opening
 (defun game-opening-message (game map-win)
   (clear-windows map-win)
@@ -910,6 +927,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
   (charms:write-string-at-point map-win "s:スタート" 15 4)
   (charms:write-string-at-point map-win "w:セーブ" 15 6)
   (charms:write-string-at-point map-win "l:ロード" 15 7)
+  (charms:write-string-at-point map-win "b:買い物" 15 8)
   (charms:write-string-at-point map-win "q:終わる" 15 5)
   (gamen-refresh map-win)
   (let ((c (charms:get-char map-win)))
@@ -921,6 +939,8 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
       ((eql c #\l)
        (erase-window map-win)
        (get-loadstr game))
+      ((eql c #\b)
+       (kaimono-mode game))
       ((eql c #\s)
        (init-game game)))))
 
@@ -1087,7 +1107,11 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
       (destroy-windows window)
       (cond
 	((eql c #\z) ;;決定
-	 (setf (unit-weapon unit) (nth cursor item-l)))
+	 (if (= (nth cursor item-l) +w_heal+) ;;傷薬
+	     (setf (unit-hp unit) (min (unit-maxhp unit) (incf (unit-hp unit) 10))
+		   (unit-item unit) (remove +w_heal+ (unit-item unit) :count 1)
+		   (unit-act? unit) t) ;;行動済み
+	     (setf (unit-weapon unit) (nth cursor item-l))))
 	((eql c #\x) ;;キャンセル
 	 nil)
 	((eql c (code-char charms/ll:key_up))
@@ -1164,7 +1188,9 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
      (erase-window cell-win unit-win mes-win)
      (enemy-act (game-units game) (game-cells game) atk-win map-win) ;;全敵の行動
      (setf (game-turn game) +p_turn+) ;;敵がすべて行動したのでターンチェンジ
-     (cell-heal (game-units game) (game-cells game)))))
+     (cell-heal (game-units game) (game-cells game))
+     (charms/ll:flushinp) ;;敵ターン中に入力されたキーを消す
+     )))
 
 ;;クリアチェック
 (defun check-stage-clear (game)
@@ -1196,21 +1222,29 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
      do
        (setf (unit-hp u) (unit-maxhp u))))
 
+
+
+;;ステージの合間
 ;;セーブするか次に行くか save-f セーブフラグセーブは一回だけできる
 (defun save-or-next-stage (game save-f)
-  (let ((window (charms:make-window 30 6 5 5)))
+  (let ((window (charms:make-window 22 6 5 5)))
     (charms:write-string-at-point
      window
      "n:次のステージへ" 1 1)
     (charms:write-string-at-point
      window
      "q:終わる" 1 2)
+    (charms:write-string-at-point
+     window
+     "b:買い物" 1 3)
     (when save-f
       (charms:write-string-at-point
        window
-       "s:セーブ" 1 3))
+       "s:セーブ" 1 4))
+    (draw-windows-box window)
     (refresh-windows window)
     (let ((c (charms:get-char window)))
+      (erase-window window)
       (charms:destroy-window window)
       (cond
 	((eql c #\n)
@@ -1221,6 +1255,9 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 	 (save-or-next-stage game nil))
 	((eql c #\q)
 	 (setf *game-play* nil))
+	((eql c #\b)
+	 (kaimono-mode game) ;;買い物
+	 (save-or-next-stage game save-f))
 	(t
 	 (save-or-next-stage game save-f))))))
 
