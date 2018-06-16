@@ -8,6 +8,8 @@
 (defparameter *set-init-pos* t)
 (defparameter *load-units-data* nil)
 (defparameter *load-stage* 0)
+(defparameter *load-money* 0)
+(defparameter *load-game* nil)
 
 (defstruct game
   (cursor_x 0)
@@ -22,6 +24,7 @@
   (atk_area nil)
   (init_pos_area nil) ;;初期位置エリア
   (s_phase 0)
+  (money 0) ;;所持金
   (stage 1))
 
 (defstruct windows
@@ -146,6 +149,7 @@
 ;;ウィンドウ壊す
 (defun destroy-windows (&rest window)
   (dolist (win window)
+    (erase-window win)
     (charms:destroy-window win)))
 
 
@@ -208,7 +212,7 @@
   (name nil) (job 0) (hp 0) (maxhp 0) (str 0) (skill 0) (give_exp 0)
   (w_lv 0) (agi 0) (luck 0) (def 0) (move 0) (weapon 0) (exp 0) (lv 1)
   (x 0) (y 0) (unit-num 0) (team 0) (alive? t) (act? nil) (rank 0)
-  (lvup nil) (item nil))
+  (lvup nil) (item nil) (money 0))
 
 
 
@@ -239,34 +243,34 @@
 			       :hit 100 :critical 10 :rangemin 1
 			       :tokkou (list +job_paradin+ +job_a_knight+ +job_s_knight+
 					     +job_shogun+)
-			       :rangemax 1)
+			       :rangemax 1 :price 9999)
               (make-weapondesc :name "やり" :damage 8 :weight 6
 			       :hit 80 :critical 0 :rangemin 1
-			       :rangemax 1)
+			       :rangemax 1 :price 450)
               (make-weapondesc :name "銀の槍" :damage 12 :weight 7
 			       :hit 80 :critical 0 :rangemin 1
-			       :rangemax 1)
+			       :rangemax 1 :price 1800)
               (make-weapondesc :name "てやり" :damage 7 :weight 6
 			       :hit 70 :critical 0 :rangemin 1
-			       :rangemax 2)
+			       :rangemax 2 :price 820)
               (make-weapondesc :name "ゆみ" :damage 4 :weight 1
 			       :hit 90 :critical 0 :rangemin 2
 			       :tokkou (list +job_p_knight+ +job_d_knight+)
-			       :rangemax 2)
+			       :rangemax 2 :price 400)
               (make-weapondesc :name "鋼の弓" :damage 7 :weight 3
 			       :hit 80 :critical 0 :rangemin 2
 			       :tokkou (list +job_p_knight+ +job_d_knight+)
-			       :rangemax 2)
+			       :rangemax 2 :price 560)
               (make-weapondesc :name "ボウガン" :damage 5 :weight 2
 			       :hit 100 :critical 20 :rangemin 2
 			       :tokkou (list +job_p_knight+ +job_d_knight+)
-			       :rangemax 2)
+			       :rangemax 2 :price 950)
               (make-weapondesc :name "おの" :damage 7 :weight 7
 			       :hit 80 :critical 0 :rangemin 1
-			       :rangemax 1)
+			       :rangemax 1 :price 360)
               (make-weapondesc :name "鋼の斧" :damage 9 :weight 9
 			       :hit 70 :critical 0 :rangemin 1
-			       :rangemax 1)
+			       :rangemax 1 :price 550)
 	      (make-weapondesc :name "銀の剣" :damage 12 :weight 3
 			       :hit 100 :critical 0 :rangemin 1
 			       :rangemax 1 :price 2000)
@@ -277,21 +281,21 @@
 	      (make-weapondesc :name "ナイトキラー" :damage 5 :weight 5
 			       :hit 90 :critical 0 :rangemin 1
 			       :tokkou (list +job_s_knight+)
-			       :rangemax 1)
+			       :rangemax 1 :price 820)
 	      (make-weapondesc :name "ハンマー" :damage 6 :weight 6
 			       :hit 70 :critical 0 :rangemin 1
 			       :tokkou (list +job_a_knight+ +job_shogun+)
-			       :rangemax 1)
+			       :rangemax 1 :price 300)
 	      (make-weapondesc :name "ドラゴンキラー" :damage 6 :weight 2
 			       :hit 80 :critical 0 :rangemin 1
 			       :tokkou (list +job_d_knight+)
-			       :rangemax 1 :price 3000)
+			       :rangemax 1 :price 5000)
 	      (make-weapondesc :name "ライブ" :damage 0 :weight 0
 			       :hit 100 :critical 0 :rangemin 1
-			       :rangemax 1)
+			       :rangemax 1 :price 99999)
 	      (make-weapondesc :name "傷薬" :damage 0 :weight 0
 			       :hit 100 :critical 0 :rangemin 1
-			       :rangemax 1)
+			       :rangemax 1 :price 120)
 	      )))
 
 ;;地形
@@ -324,7 +328,7 @@
                             :movecost #(-1 1 2 4 -1 1 2 2))
               (make-jobdesc :name "パラディン" :aa "聖" :give_exp 44
 			    :movecost #(-1 1 3 6 -1 1 2 2))
-              (make-jobdesc :name "Sナイト" :aa "騎" :give_exp 3
+              (make-jobdesc :name "Sナイト" :aa "騎" :give_exp 30
 			    :movecost #(-1 1 3 -1 -1 1 2 2))
               (make-jobdesc :name "Aナイト" :aa "重" :give_exp 32
 			    :movecost #(-1 1 3 -1 -1 1 2 2))
@@ -351,29 +355,29 @@
 	      )))
 
 (defparameter *units-data* ;;A~Gも敵データにしてよい
-  ;;       name job hp maxhp str skill w_lv agi luck def give-exp move weapon rank
+  ;;       name job hp maxhp str skill w_lv agi luck def give-exp move weapon rank money
     ;;ステージ１ボス
-  `((A . ("プロピアキャスター" ,+job_pirate+   24 24 7  3  7  8  0  6 34 6 ,+enemy+ ,+w_steal_ax+ ,+boss+))
+  `((A . ("プロピアキャスター" ,+job_pirate+   24 24 7  3  7  8  0  6 34 6 ,+enemy+ ,+w_steal_ax+ ,+boss+ 300))
     ;;ステージ２ボス
-    (B . ("もび太"     ,+job_bandit+   27 27 8  3  7  8  0  6 36  6 ,+enemy+ ,+w_steal_ax+ ,+boss+))
+    (B . ("もび太"     ,+job_bandit+   27 27 8  3  7  8  0  6 36  6 ,+enemy+ ,+w_steal_ax+ ,+boss+ 400))
     ;;ステージ３ボス
-    (C . ("ハツネツA"  ,+job_shogun+   28 28 9  1 3  4  0  14 50  5 ,+enemy+ ,+w_spear+ ,+boss+))
+    (C . ("ハツネツA"  ,+job_shogun+   28 28 9  1 3  4  0  14 50  5 ,+enemy+ ,+w_spear+ ,+boss+ 500))
     ;;ステージ4ボス
-    (D . ("リスパー"   ,+job_paradin+  27 27 8  7 10 11  0  9 44 10 ,+enemy+ ,+w_rapier+ ,+boss+))
+    (D . ("リスパー"   ,+job_paradin+  27 27 8  7 10 11  0  9 44 10 ,+enemy+ ,+w_rapier+ ,+boss+ 600))
     ;;ステージ5ボス
-    (E . ("モーゲ皇帝" ,+job_yusha+    30 30 8 14 10 14  0 10 46  7 ,+enemy+ ,+w_silver_sword+ ,+boss+))
+    (E . ("モーゲ皇帝" ,+job_yusha+    30 30 8 14 10 14  0 10 46  7 ,+enemy+ ,+w_silver_sword+ ,+boss+ 700))
     ;;以下雑魚
-    (F . ("ペカ民兵"   ,+job_pirate+   18 18 5  1  5  6  0  4 24  6 ,+enemy+ ,+w_hammer+ ,+common+))
-    (G . ("ペカ民兵"   ,+job_s_knight+ 16 16 5  2  8  6  0  7 30  9 ,+enemy+ ,+w_armor_killer+ ,+common+))
-    (H . ("ペカ民兵"   ,+job_hunter+   18 18 6  1  5  5  0  3 26  6 ,+enemy+ ,+w_bow+ ,+common+))
-    (I . ("ペカ民兵"   ,+job_hunter+   18 18 6  1  5  5  0  3 26  6 ,+enemy+ ,+w_bow+ ,+common+))
-    (J . ("ペカ民兵"   ,+job_thief+    16 16 3  1  2  9  0  2 40  7 ,+enemy+ ,+w_iron_sword+ ,+common+))
-    (K . ("ペカ民兵"   ,+job_pirate+   18 18 5  1  5  6  0  4 24  6 ,+enemy+ ,+w_ax+ ,+common+))
-    (L . ("ペカ民兵"   ,+job_bandit+   20 20 5  1  5  5  0  3 26  6 ,+enemy+ ,+w_ax+ ,+common+))
-    (M . ("ペカ民兵"  ,+job_mercenary+ 16 16 4  8  8 10  0  5 28  7 ,+enemy+ ,+w_iron_sword+ ,+common+))
-    (N . ("ペカ民兵"   ,+job_d_knight+ 22 22 9  3 10  6  0 14 44 10 ,+enemy+ ,+w_ax+ ,+common+))
-    (O . ("ペカ民兵"   ,+job_s_knight+ 16 16 5  2  8  6  0  7 30  9 ,+enemy+ ,+w_spear+ ,+common+))
-    (P . ("ペカ民兵"   ,+job_a_knight+ 16 16 5  1  7  3  0 11 32  5 ,+enemy+ ,+w_iron_sword+ ,+common+))))
+    (F . ("ペカ民兵"   ,+job_pirate+   18 18 5  1  5  6  0  4 24  6 ,+enemy+ ,+w_hammer+ ,+common+ 100))
+    (G . ("ペカ民兵"   ,+job_s_knight+ 16 16 5  2  8  6  0  7 30  9 ,+enemy+ ,+w_armor_killer+ ,+common+ 100))
+    (H . ("ペカ民兵"   ,+job_hunter+   18 18 6  1  5  5  0  3 26  6 ,+enemy+ ,+w_bow+ ,+common+ 100))
+    (I . ("ペカ民兵"   ,+job_hunter+   18 18 6  1  5  5  0  3 26  6 ,+enemy+ ,+w_bow+ ,+common+ 100))
+    (J . ("ペカ民兵"   ,+job_thief+    16 16 3  1  2  9  0  2 40  7 ,+enemy+ ,+w_iron_sword+ ,+common+ 100))
+    (K . ("ペカ民兵"   ,+job_pirate+   18 18 5  1  5  6  0  4 24  6 ,+enemy+ ,+w_ax+ ,+common+ 100))
+    (L . ("ペカ民兵"   ,+job_bandit+   20 20 5  1  5  5  0  3 26  6 ,+enemy+ ,+w_ax+ ,+common+ 100))
+    (M . ("ペカ民兵"  ,+job_mercenary+ 16 16 4  8  8 10  0  5 28  7 ,+enemy+ ,+w_iron_sword+ ,+common+ 120))
+    (N . ("ペカ民兵"   ,+job_d_knight+ 22 22 9  3 10  6  0 14 44 10 ,+enemy+ ,+w_ax+ ,+common+ 180))
+    (O . ("ペカ民兵"   ,+job_s_knight+ 16 16 5  2  8  6  0  7 30  9 ,+enemy+ ,+w_spear+ ,+common+ 130))
+    (P . ("ペカ民兵"   ,+job_a_knight+ 16 16 5  1  7  3  0 11 32  5 ,+enemy+ ,+w_iron_sword+ ,+common+ 120))))
 
 ;;lvup = ステータス上昇率 (HP 力 技 武器 速さ 運 守備 魔防)
 (defparameter *defo-player-units*

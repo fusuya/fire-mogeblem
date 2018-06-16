@@ -16,7 +16,7 @@
      collect (list (unit-name u) (unit-job u) (unit-hp u) (unit-maxhp u) (unit-str u)
 		   (unit-skill u) (unit-w_lv u) (unit-agi u) (unit-luck u) (unit-def u)
 		   (unit-give_exp u) (unit-move u) (unit-team u) (unit-weapon u) (unit-rank u)
-		   (unit-lv u) (unit-lvup u) (unit-item u))))
+		   (unit-lv u) (unit-lvup u) (unit-item u) (unit-exp u))))
 
 ;;謎のコード
 (defun my-getstr (window)
@@ -49,7 +49,8 @@
     (with-open-file (out str :direction :output
 			 :if-exists :supersede)
       (format out "(setf *load-units-data* '~s)~%" lst)
-      (format out "(setf *load-stage* ~d)" stage))
+      (format out "(setf *load-stage* ~d)~%" stage)
+      (format out "(setf *load-money* ~d)" (game-money game)))
     (charms:write-string-at-point
      window
      "セーブしました" 1 4)
@@ -84,9 +85,10 @@
 			 collect (apply #'make-unit
 					(mapcan #'list
 						'(:name :job :hp :maxhp :str :skill
-						  :w_lv :agi :luck :def :give_exp :move :team :weapon :rank :lv :lvup :item)
+						  :w_lv :agi :luck :def :give_exp :move :team :weapon :rank :lv :lvup :item :exp)
 						u))))
-	  (game-stage game) *load-stage*)))
+	  (game-stage game) *load-stage*
+	  (game-money game) *load-money*)))
 
 ;;ロードしたいファイルを選択する
 (defun select-load-file (cursor files num select-win)
@@ -144,7 +146,7 @@
 		     (load-suru game)
 		     ;;(delete-file loadstr) ;;ろーどしたファイル削除
 		     (setf *game-opening* nil
-			   *set-init-pos* t))
+			   *load-game* t))
 	      (charms:write-string-at-point
 	       window
 	       "復活の呪文が間違ってます！！" 1 3))))

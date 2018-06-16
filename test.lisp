@@ -120,7 +120,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
     (apply #'make-unit
 	   (append (mapcan #'list
 			   '(:name :job :hp :maxhp :str :skill
-			     :w_lv :agi :luck :def :give_exp :move :team :weapon :rank)
+			     :w_lv :agi :luck :def :give_exp :move :team :weapon :rank :money)
 			   data)
 		   (list :unit-num unit-c :x x :y y)))))
 
@@ -615,7 +615,8 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
     atk-win
     (if (= (unit-team dead-unit) +ally+)
         (format nil "~a は ~a に倒された。" (unit-name dead-unit) (unit-name alive-unit))
-        (format nil "~a は ~a を倒した。" (unit-name alive-unit) (unit-name dead-unit)))
+        (format nil "~a は ~a を倒した"
+		(unit-name alive-unit) (unit-name dead-unit)))
     1 4)
   (charms:get-char atk-win))
 
@@ -623,7 +624,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
   (aref *celldescs* (aref cells y x)))
 
 ;;攻撃処理
-(defun attack! (atk-unit def-unit cells atk-type atk-win)
+(defun attack! (atk-unit def-unit cells atk-type atk-win game)
   (let* ((a-skill (unit-skill atk-unit)) (kari-exp 0)
          (a-agi (unit-agi atk-unit)) (d-agi (unit-agi def-unit))
          (a-weapon (unit-weapondesc atk-unit)) (a-w-tokkou (weapondesc-tokkou a-weapon))
@@ -652,17 +653,19 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
    ;;反撃
    (when (and (> (unit-hp def-unit) 0) (= atk-type +atk_normal+)
               (>= d-r-max dist d-r-min))
-     (attack! def-unit atk-unit cells +atk_counter+ atk-win))
+     (attack! def-unit atk-unit cells +atk_counter+ atk-win game))
    ;;再攻撃
    (when (and (> a-speed d-speed) (= atk-type +atk_normal+)
               (> (unit-hp def-unit) 0) (> (unit-hp atk-unit) 0))
-     (attack! atk-unit def-unit cells +atk_re+ atk-win))
+     (attack! atk-unit def-unit cells +atk_re+ atk-win game))
    ;;死亡判定&経験値取得
    (when (= atk-type +atk_normal+)
      (cond
        ((>= 0 (unit-hp def-unit)) ;;def側を倒した
         (when (= (unit-rank def-unit) +leader+)
           (setf *game-over?* t))
+	(when (= (unit-team atk-unit) +ally+) ;;プレイヤーユニットが敵を倒したらお金ゲット
+	  (incf (game-money game) (unit-money def-unit)))
 	(if (= (unit-rank def-unit) +boss+) ;;bossだったら+10経験値
 	    (incf (unit-exp atk-unit) (+ 10 (* 2 (unit-give_exp def-unit))))
 	    (incf (unit-exp atk-unit) (* 2 (unit-give_exp def-unit))))
@@ -692,7 +695,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
          (def-unit (get-unit x y (game-units game))))
     (when (and def-unit (aref (game-atk_area game) y x)
                (/= (unit-team atk-unit) (unit-team def-unit)))
-      (attack! atk-unit def-unit (game-cells game) +atk_normal+ atk-win)
+      (attack! atk-unit def-unit (game-cells game) +atk_normal+ atk-win game)
       (lv-up atk-unit unit-win) ;;レベルアップ処理
       (setf (game-s_phase game) +select_unit+
             (unit-act? atk-unit) t
@@ -758,11 +761,11 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 
 ;;ユニットの移動可能範囲をリストで返す
 ;;ユニットの移動可能範囲取得
-(defun can-move-list (xy units move movecost cells team m-list)
+(defun can-move-list (xy units move movecost cells team m-list i)
   (if (or (> 0 (car xy)) (> 0 (cadr xy)) (>= (car xy) *map-w*) (>= (cadr xy) *map-h*))
       m-list
       (let* ((cell (aref cells (cadr xy) (car xy)))
-             (cost (aref movecost cell))
+             (cost (if (= i 0) 0 (aref movecost cell)))
              (unit? (get-unit (car xy) (cadr xy) units)))
         (if (or (> cost move) (= cost -1)
                 (and unit? (/= (unit-team unit?) team)))
@@ -773,7 +776,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
                 (push xy m-list))
               (loop for v in '((0 1) (0 -1) (1 0) (-1 0)) do
                 (let ((xy1 (mapcar #'+ xy v)))
-                  (setf m-list (can-move-list xy1 units (- move cost) movecost cells team m-list))))
+                  (setf m-list (can-move-list xy1 units (- move cost) movecost cells team m-list (1+ i)))))
               m-list)))))
 
 ;;ユニットの移動可能範囲取得
@@ -782,7 +785,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
          (x (unit-x unit)) (y (unit-y unit))
          (team (unit-team unit))
          (movecost (jobdesc-movecost (unit-jobdesc unit))))
-    (can-move-list (list x y) units move movecost cells team '())))
+    (can-move-list (list x y) units move movecost cells team '() 0)))
 
 
 
@@ -850,12 +853,12 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
         (astar-move unit target cells units r-min r-max movecost map-win))))
 
 ;;敵の攻撃
-(defun enemy-attack (atk-unit def-unit cells atk-win)
-  (attack! atk-unit def-unit cells +atk_normal+ atk-win)
+(defun enemy-attack (atk-unit def-unit cells atk-win game)
+  (attack! atk-unit def-unit cells +atk_normal+ atk-win game)
   (erase-window atk-win))
 
 ;;敵の行動 攻撃範囲に相手ユニットがいたら攻撃する
-(defun enemy-act (units cells atk-win map-win)
+(defun enemy-act (units cells atk-win map-win game)
   (let ((wait-time 0.05)) 
     (loop while (null *game-over?*)
        for u across units
@@ -870,12 +873,12 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 		(target (near-chara u units r-min cells))
 		(dist (unit-dist u target)))
 	   (if (>= r-max dist r-min) ;;攻撃範囲に相手がいる
-	       (enemy-attack u target cells atk-win)
+	       (enemy-attack u target cells atk-win game)
 	       (progn ;;移動後に攻撃範囲に相手がいたら攻撃
 		 (enemy-move u target r-min r-max units cells map-win)
 		 (setf target (near-chara u units r-min cells))
 		 (when (>= r-max (unit-dist u target) r-min)
-		   (enemy-attack u target cells atk-win)))))
+		   (enemy-attack u target cells atk-win game)))))
 	 (gamen-refresh map-win))))
 
 ;;回復地形効果
@@ -903,31 +906,99 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
   (init-move-area (game-move_area game))
   (init-move-area (game-atk_area game)))
 
-;;買い物 
-(defun kaimono-mode (game)
-  (let ((window (charms:make-window 40 (+ +w_max+ 2) 5 5)))
-    (loop for i from 0 below +w_max+
-       do (charms:write-string-at-point
-	   window
-	   (format nil "~a" (weapondesc-name (aref *weapondescs* i)))
-	   1 (1+ i))
-	 (charms:write-string-at-point
-	   window
-	   (format nil "~4d モゲ" (weapondesc-price (aref *weapondescs* i)))
-	   16 (1+ i)))
+;;誰に買ったアイテムをもたせるか
+(defun item-motsu (game cursor item-num)
+  (let* ((num (length (game-player_units game))) ;;ユニット数
+	 (window (charms:make-window 20 (+ num 2) 38 0)))
+    (charms/ll:keypad (charms::window-pointer window) 1)
+    (loop for u across (game-player_units game)
+       for i from 0
+       do (let ((color (if (= i cursor) +black/white+ +white/black+)))
+	    (with-colors (window color)
+	      (charms:write-string-at-point
+	       window
+	       (format nil "~a" (unit-name u))
+	       1 (1+ i)))))
     (draw-windows-box window)
-    (charms:write-string-at-point window "秘密のお店" 15 0)
+    (charms:write-string-at-point window "誰が持つ？" 5 0)
     (refresh-windows window)
-    (charms:get-char window)))
+    (let ((c (charms:get-char window))
+	  (unit (aref (game-player_units game) cursor)))
+      (destroy-windows window)
+      (cond
+	((eql c #\z)
+	 (decf (game-money game) (weapondesc-price (aref *weapondescs* item-num)))
+	 (setf (unit-item unit) (append (unit-item unit) (list item-num))))
+	((eql c #\x)
+	 )
+	((eql c (code-char charms/ll:key_up))
+	 (if (> 0 (1- cursor))
+	     (item-motsu game (1- num) item-num)
+	     (item-motsu game (1- cursor) item-num)))
+	((eql c (code-char charms/ll:key_down))
+	 (if (>= (1+ cursor) num)
+	     (item-motsu game 0 item-num)
+	     (item-motsu game (1+ cursor) item-num)))
+	(t
+	 (item-motsu game cursor item-num))))))
+
+;;お金が足りない
+(defun okane-nai ()
+  (let ((window (charms:make-window 22 3 38 0)))
+    (draw-windows-box window)
+    (charms:write-string-at-point window "お金が足りません！" 1 1)
+    (charms:get-char window)
+    (destroy-windows window)))
+
+;;買い物 
+(defun kaimono-mode (game cursor)
+  (let ((window (charms:make-window 30 (+ +w_max+ 2) 5 4))
+	(m-win (charms:make-window 20 3 5 1))) ;;所持金ウィンドウ
+    (charms/ll:keypad (charms::window-pointer window) 1)
+    (charms:write-string-at-point m-win (format nil "所持金:~5dモゲ" (game-money game)) 1 1)
+    (loop for i from 0 below +w_max+
+       do (let ((color (if (= i cursor) +black/white+ +white/black+)))
+	    (with-colors (window color)
+	      (charms:write-string-at-point
+	       window
+	       (format nil "~a" (weapondesc-name (aref *weapondescs* i)))
+	       1 (1+ i)))
+	    (charms:write-string-at-point
+	     window
+	     (format nil "~5dモゲ" (weapondesc-price (aref *weapondescs* i)))
+	     18 (1+ i))))
+    (draw-windows-box window m-win)
+    (charms:write-string-at-point window "秘密のお店" 10 0)
+    (refresh-windows window m-win)
+    (let ((c (charms:get-char window)))
+      (cond
+	((eql c #\z)
+	 (if (> (weapondesc-price (aref *weapondescs* cursor)) (game-money game))
+	     (okane-nai) ;;お金が足りません
+	     (item-motsu game 0 cursor)) ;;cursor位置がアイテム番号
+	 (kaimono-mode game cursor))
+	((eql c #\x)
+	 )
+	((eql c (code-char charms/ll:key_up))
+	 (if (> 0 (1- cursor))
+	     (kaimono-mode game (1- +w_max+))
+	     (kaimono-mode game (1- cursor))))
+	((eql c (code-char charms/ll:key_down))
+	 (if (>= (1+ cursor) +w_max+)
+	     (kaimono-mode game 0)
+	     (kaimono-mode game (1+ cursor))))
+	(t
+	 (kaimono-mode game cursor)))
+      (destroy-windows window))))
 
 ;;game opening
 (defun game-opening-message (game map-win)
   (clear-windows map-win)
   (charms:write-string-at-point map-win "ファイアーモゲブレム" 15 2)
   (charms:write-string-at-point map-win "s:スタート" 15 4)
-  (charms:write-string-at-point map-win "w:セーブ" 15 6)
+  (charms:write-string-at-point map-win "w:セーブ" 15 6) ;;消す予定
   (charms:write-string-at-point map-win "l:ロード" 15 7)
-  (charms:write-string-at-point map-win "b:買い物" 15 8)
+  ;;(charms:write-string-at-point map-win "b:買い物" 15 8)
   (charms:write-string-at-point map-win "q:終わる" 15 5)
   (gamen-refresh map-win)
   (let ((c (charms:get-char map-win)))
@@ -939,8 +1010,8 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
       ((eql c #\l)
        (erase-window map-win)
        (get-loadstr game))
-      ((eql c #\b)
-       (kaimono-mode game))
+      ;;((eql c #\b)
+      ;; (kaimono-mode game 0))
       ((eql c #\s)
        (init-game game)))))
 
@@ -1083,7 +1154,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 	     (setf *game-play* nil)))
     (setf *set-init-pos* nil)))
 
-;;装備変更 TODO
+;;装備変更
 (defun equip-mode (unit cursor)
   (let* ((item-l (unit-item unit)) (len (length item-l)) ;;持ってる武器の数
 	 (window (charms:make-window 18 (+ len 2) 16 (+ *map-h* 2))))
@@ -1186,7 +1257,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
      (cell-heal (game-units game) (game-cells game))) ;;地形による回復
     ((= (game-turn game) +e_turn+)
      (erase-window cell-win unit-win mes-win)
-     (enemy-act (game-units game) (game-cells game) atk-win map-win) ;;全敵の行動
+     (enemy-act (game-units game) (game-cells game) atk-win map-win game) ;;全敵の行動
      (setf (game-turn game) +p_turn+) ;;敵がすべて行動したのでターンチェンジ
      (cell-heal (game-units game) (game-cells game))
      (charms/ll:flushinp) ;;敵ターン中に入力されたキーを消す
@@ -1244,11 +1315,11 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
     (draw-windows-box window)
     (refresh-windows window)
     (let ((c (charms:get-char window)))
-      (erase-window window)
-      (charms:destroy-window window)
+      (destroy-windows window)
       (cond
 	((eql c #\n)
 	 (setf *set-init-pos* t ;;ステージ開始初期位置設定フラグ
+	       *load-game* nil
 	       *stage-clear* nil)) ;;ステージクリアフラグ消す
 	((and save-f (eql c #\s))
 	 (save-suru game)
@@ -1256,7 +1327,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 	((eql c #\q)
 	 (setf *game-play* nil))
 	((eql c #\b)
-	 (kaimono-mode game) ;;買い物
+	 (kaimono-mode game 0) ;;買い物
 	 (save-or-next-stage game save-f))
 	(t
 	 (save-or-next-stage game save-f))))))
@@ -1304,6 +1375,8 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
 	      (*stage-clear*
 	       (erase-window map-win unit-win atk-win cell-win mes-win)
 	       (set-stage game))
+	      (*load-game*
+	       (save-or-next-stage game nil))
               (*game-clear* ;;ゲームクリア
                 (erase-window map-win unit-win atk-win cell-win mes-win)
                 (game-clear-message game map-win))
