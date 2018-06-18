@@ -897,14 +897,27 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
         (game-cursor_y game)              0
         (game-cells game)               nil
         (game-units game)               nil
+	(game-units_l game)             nil
         (game-select_unit game)         nil	
         (game-turn game)           +p_turn+
+	(game-stage game)                 1
         (game-s_phase game)   +select_unit+
+	(game-player_units game) *defo-player-units*
 	*game-clear*                    nil
 	*game-over?*                    nil
-	*game-opening*                  nil)
+	*game-opening*                  nil
+	*set-init-pos*                    t)
   (init-move-area (game-move_area game))
+  (init-move-area (game-init_pos_area game))
   (init-move-area (game-atk_area game)))
+
+;;所持数オーバー
+(defun motenaiyo ()
+  (let ((window (charms:make-window 28 3 38 0)))
+    (draw-windows-box window)
+    (charms:write-string-at-point window "アイテムが一杯で持てません" 1 1)
+    (charms:get-char window)
+    (destroy-windows window)))
 
 ;;誰に買ったアイテムをもたせるか
 (defun item-motsu (game cursor item-num)
@@ -927,8 +940,13 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
       (destroy-windows window)
       (cond
 	((eql c #\z)
-	 (decf (game-money game) (weapondesc-price (aref *weapondescs* item-num)))
-	 (setf (unit-item unit) (append (unit-item unit) (list item-num))))
+	 (cond
+	   ((>= (length (unit-item unit)) 5) ;;所持アイテム5個以上なら
+	    (motenaiyo)
+	    (item-motsu game cursor item-num))
+	   (t
+	    (decf (game-money game) (weapondesc-price (aref *weapondescs* item-num)))
+	    (setf (unit-item unit) (append (unit-item unit) (list item-num))))))
 	((eql c #\x)
 	 )
 	((eql c (code-char charms/ll:key_up))
@@ -996,7 +1014,7 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
   (clear-windows map-win)
   (charms:write-string-at-point map-win "ファイアーモゲブレム" 15 2)
   (charms:write-string-at-point map-win "s:スタート" 15 4)
-  (charms:write-string-at-point map-win "w:セーブ" 15 6) ;;消す予定
+  ;;(charms:write-string-at-point map-win "w:セーブ" 15 6) ;;消す予定
   (charms:write-string-at-point map-win "l:ロード" 15 7)
   ;;(charms:write-string-at-point map-win "b:買い物" 15 8)
   (charms:write-string-at-point map-win "q:終わる" 15 5)
@@ -1005,8 +1023,8 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
     (cond
       ((eql c #\q)
        (setf *game-play* nil))
-      ((eql c #\w)
-       (save-suru game))
+      ;;((eql c #\w)
+      ;; (save-suru game))
       ((eql c #\l)
        (erase-window map-win)
        (get-loadstr game))
@@ -1385,8 +1403,8 @@ CL-USER 10 > (minimum '((a 1) (b -1) (c -2)) #'< #'second)
                 (game-over-message game map-win))
 	      (*set-init-pos* ;;ステージ開始
 	       ;;地形とユニットセット
-	       (let ((mapu-e (nth (game-stage game) *all-enemy-map*))
-		     (mapu-no (nth (game-stage game) *all-no-unit-map*)))
+	       (let ((mapu-e (copy-tree (nth (game-stage game) *all-enemy-map*)))
+		     (mapu-no (copy-tree (nth (game-stage game) *all-no-unit-map*))))
 		 (make-cells-and-units game mapu-e mapu-no) ;;マップと敵データ作成
 		 (get-init-pos-area game) ;;初期配置可能な場所取得
 		 (set-units-pos game map-win cell-win unit-win mes-win) ;;ユニット配置

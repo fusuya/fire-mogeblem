@@ -295,7 +295,7 @@
 			       :rangemax 1 :price 99999)
 	      (make-weapondesc :name "傷薬" :damage 0 :weight 0
 			       :hit 100 :critical 0 :rangemin 1
-			       :rangemax 1 :price 120)
+			       :rangemax 1 :price 220)
 	      )))
 
 ;;地形
@@ -384,7 +384,7 @@
   (make-array 7 :initial-contents
         (list (make-unit :name "もげぞう" :job +job_lord+ :hp 18 :maxhp 18
                          :str 5 :skill 3 :w_lv 5 :agi 7 :luck 7 :def 7
-			 :item (list +w_rapier+ +w_heal+ +w_heal+)
+			 :item (list +w_rapier+)
 			 :lvup '(90 50 40 30 50 70 20 0)
                          :move 7 :weapon +w_rapier+ :team +ally+ :rank +leader+)
               (make-unit :name "ヨテガン" :job +job_paradin+ :hp 20 :maxhp 20
